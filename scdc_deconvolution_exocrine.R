@@ -12,30 +12,29 @@ metadata <- read.table(file = "~/Praktikum/Data/Clinial_data_Meta_information.ts
 
 
 #### load Benchmark data sets ####
-# -> need true proportions?
 
-# Califano: no grading, panNEN (i think, GEP-NEN were taken out, check with metadata again)
+# Califano
 alvarez <- read.table(file = "~/Praktikum/Data/Alverez.S105.tsv", sep = '\t', header = TRUE) 
 alvarez_meta_idx <- which(metadata$Study == "Alvarez") 
 alvarez_meta <- metadata[alvarez_meta_idx,]
 alvarez_meta <- alvarez_meta[which(alvarez_meta$Location=="pancreas"),]
 alvarez_meta <- alvarez_meta[which(alvarez_meta$Subtype!= "Outlier"),] #105!
 
-# Fadista: all G0 (healthy), pancreatic
+# Fadista
 fadista <- read.table(file = "~/Praktikum/Data/Fadista.S89.tsv", sep = '\t', header = TRUE)
 rownames(fadista) <- fadista[,1]
 fadista <- fadista[,-1]
 fadista_meta_idx <- which(metadata$Study == "Fadista")
 fadista_meta <- metadata[fadista_meta_idx,]
 
-# Missiaglia: grading, K-67
+# Missiaglia
 missiaglia <- read.table(file = "~/Praktikum/Data/Missaglia.S75.tsv", sep = '\t', header = TRUE)
 missiaglia_meta_idx <- which(metadata$Study == "GSE73338")
 missiaglia_meta <- metadata[missiaglia_meta_idx,] 
 missiaglia_sample_idx <- which(missiaglia_meta$Name %in% colnames(missiaglia))
 missiaglia_meta <- missiaglia_meta[missiaglia_sample_idx,]
 
-# Riemer: grading (!!NOT RIGHT!!), NEC + NET (no Controls, only Cancer) panNEN + GEP-NEN
+# Riemer
 riemer <- read.table(file = "~/Praktikum/Data/Riemer.S40.tsv", sep = '\t', header = TRUE)
 rownames(riemer) <- riemer[,1]
 riemer <- riemer[,-1]
@@ -43,17 +42,17 @@ riemer_meta_idx <- which(metadata$Study == "Riemer")
 riemer_meta <- metadata[riemer_meta_idx,]
 riemer_meta <- riemer_meta[which(riemer_meta$Subtype=="Cancer"),] #40!
 
-# Sadanandam: grading (!!NOT RIGHT!!), panNEN (but others too?)
+# Sadanandam
 sadanandam <- read.table(file = "~/Praktikum/Data/Sadanandam.S29.tsv", sep = '\t', header = TRUE)
 sad_meta_idx <- which(metadata$Study == "Sadanandam") 
 sad_meta <- metadata[sad_meta_idx,]
 
-# Scarpa: grading, panNEN, NET+NEC
+# Scarpa
 scarpa <- read.table(file = "~/Praktikum/Data/Scarpa.S29.tsv", sep = '\t', header = TRUE)
 scarpa_meta_idx <- which(metadata$Study == "Scarpa") 
 scarpa_meta <- metadata[scarpa_meta_idx,]
 
-# RepSet: Scarpa+Riemer (panNEN+GEP-NEN), grading (!!NOT RIGHT!!)
+# RepSet
 repset <- read.table(file = "~/Praktikum/Data/RepSet.S57.tsv", sep = '\t', header = TRUE)
 repset_meta <- rbind(scarpa_meta, riemer_meta)
 rownames(repset_meta) <- repset_meta$Name
@@ -140,7 +139,6 @@ colnames(segerstolpe_meta) <- c("name", "subtype")
 t2d_idx <- which(sapply(1:nrow(segerstolpe_meta), function(x) str_detect(rownames(segerstolpe_meta)[x], "T2D")))
 segerstolpe_meta <- segerstolpe_meta[-t2d_idx,]
 segerstolpe_cnt <- segerstolpe_cnt[,-t2d_idx]
-# add column about sample from segerstolpe@phenoData@data[,34:36] -> just match and see if cluster is same
 seger_scdc_pheno <- cbind(rownames(segerstolpe@phenoData@data), segerstolpe@phenoData@data[,34:36])
 pheno_idx <- match(unname(segerstolpe_meta[,1]), seger_scdc_pheno[,1])
 seger_scdc_pheno <- seger_scdc_pheno[pheno_idx,]
@@ -177,30 +175,6 @@ colnames(lawlor_meta_diff)[11] <- "cluster"
 
 # single cell: 
 lawlor <- getESET(exprs = lawlor_dt, fdata = rownames(lawlor_dt), pdata = lawlor_meta_diff)
-
-
-# lawlor_gz <- gzfile('~/artdeco/artdeco/data/Lawlor.csv.gz','rt')  
-# lawlor_csv <- read.csv(lawlor_gz,header=T, sep = ';') 
-# lawlor_meta <- metadata[which(metadata$Study=="Lawlor"),]
-# lawlor_idx <- which(lawlor_meta$Name %in% colnames(lawlor_csv))
-# lawlor_meta <- lawlor_meta[lawlor_idx,]
-# rownames(lawlor_meta) <- lawlor_meta$Name
-# lawlor_meta$Subtype <- tolower(lawlor_meta$Subtype)
-# #write.csv(lawlor_meta, file = "~/Praktikum/Data/Lawlor_meta.csv", quote = FALSE, row.names = T, col.names = T)
-# #lawlor_meta_test <- read.csv(file = "~/Praktikum/Data/Lawlor_meta.csv", header = T, sep = ",", row.names = 1)
-# lawlor_subtype_idx <- which(lawlor_meta$Subtype %in% c("alpha", "beta", "gamma", "delta"))
-# lawlor_subtype <- lawlor_meta[lawlor_subtype_idx,]
-# lawlor_subtype_csv <- lawlor_csv[,lawlor_subtype_idx]
-# 
-# fdata <- rownames(lawlor_subtype_csv)
-# pData <- cbind(cellname = colnames(lawlor_subtype_csv), subjects = lawlor_subtype$Subtype)
-# lawlor <- getESET(lawlor_subtype_csv, fdata = fdata, pdata = pData)
-#
-# phenoData <- new("AnnotatedDataFrame", data=lawlor_subtype)
-# featureData <- new("AnnotatedDataFrame", data=data.frame(rownames(lawlor_subtype_csv)))
-# rownames(featureData@data) <- rownames(lawlor_subtype_csv)
-#
-# lawlor <- ExpressionSet(assayData=as.matrix(lawlor_subtype_csv), phenoData = phenoData, featureData = featureData)
 
 
 
