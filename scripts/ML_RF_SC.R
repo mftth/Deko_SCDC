@@ -396,3 +396,146 @@ write.csv(endocrine_RF_feature_importance, file = "~/Praktikum/RF_res/endocrine_
           col.names = T)
 write.csv(exocrine_RF_feature_importance, file = "~/Praktikum/RF_res/exocrine_RF_featureImp2.csv", quote = F, sep = "\t",
           col.names = T)
+
+
+
+
+
+#########################
+# discern NECs from NETs
+### prediction NEC NET
+library(InformationValue)
+
+
+ki67_repset <- repset[which(rownames(repset) == "MKI67"),]
+#ductal = deconvolution_results[rownames(meta_data),"ductal"]
+nec_net <- repset_meta$NEC_NET
+target_vector <- nec_net
+target_vector[target_vector=="NEC"] <- 0
+target_vector[target_vector != 0] <- 1
+
+lin_rf_fit <- list()
+lin_predicted <- list()
+lin_optCutOff <- list()
+lin_sensitivity <- list()
+lin_specificity <- list()
+
+for (i_alg in 1:length(cell_type_prop_exocrine_repset)) {
+  ductal <- cell_type_prop_exocrine_repset[[i_alg]][,"ductal"]
+  t_data = data.frame(
+    "mki_67" = as.numeric(ki67_repset),
+    "nec_net" = nec_net,
+    "ductal" = ductal
+  )
+  
+  lin_rf_fit[[i_alg]] <- glm(
+    nec_net ~ ductal, data = t_data, family=binomial(link="logit")
+  )
+  
+  lin_predicted[[i_alg]] <- plogis(predict(lin_rf_fit[[i_alg]], t_data))  # predicted scores
+  lin_optCutOff[[i_alg]] <- optimalCutoff(target_vector, lin_predicted[[i_alg]])[1] 
+  lin_sensitivity[[i_alg]] = round(InformationValue::sensitivity(actuals = as.double(target_vector),lin_predicted[[i_alg]], 
+                                                                 threshold = lin_optCutOff[[i_alg]]),2)
+  lin_specificity[[i_alg]] = round(InformationValue::specificity(actuals = as.double(target_vector),lin_predicted[[i_alg]], 
+                                                                 threshold = lin_optCutOff[[i_alg]]),2)
+}
+
+names(lin_rf_fit) <- names(cell_type_prop_exocrine_repset)
+names(lin_predicted) <- names(cell_type_prop_exocrine_repset)
+names(lin_optCutOff) <- names(cell_type_prop_exocrine_repset)
+names(lin_sensitivity) <- names(cell_type_prop_exocrine_repset)
+names(lin_specificity) <- names(cell_type_prop_exocrine_repset)
+
+
+
+
+
+#########################
+## survival analysis
+# Supplementary Figure 7: Kaplan-Meier survival plot of disease-related patient survival time comparing the predictive 
+# performance of the Ki-67 levels and ductal signature in the RepSet dataset for a two-arm design. A ‘high’ and ‘low’ risk 
+# subgroup of the RepSet were constructed based on either Ki-67 expression levels or the predicted ductal proportion 
+# predictions and Cox-hazard ratio test on difference of survival between the subgroups applied. It is illustrated that 
+# either test was significant, that the Ki-67 based test had more statistical power but that the overall trend of survival 
+# rate prediction remained comparable between ductal cell type proportion and the Ki-67 based predictions. Note that the 
+# depicted ductal proportion predictions were extracted from a CIBERSORT model trained on Lawlor et al. as opposed to 
+# ubiquitously presented Baron et al. scRNA data.
+
+# Supplementary Figure 8: Kaplan-Meier survival plot of disease-related patient survival time in the RepSet dataset comparing 
+# the predictive performance of the grading and ductal signature for a three arm design. The grading shows a clearly superior 
+# statistical power to distinguish the three cohorts at a p-value of 0.0022, however, the ductal cell type proportion
+# predictions remain significant at a p-value of 0.019.
+
+library("survival")
+library("survminer")
+library(ggplot2)
+# two arm
+ki67_repset <- repset[which(rownames(repset) == "MKI67"),]
+ductal_repset <- sapply(1:length(cell_type_prop_exocrine_repset), function(x) cell_type_prop_exocrine_repset[[x]][,"ductal"])
+colnames(ductal_repset) <- names(cell_type_prop_exocrine_repset)
+
+
+#ductal_values = deconvolution_results$ductal
+ductal_values <- ductal_repset[,1]
+agg = aggregate(ductal_values, FUN = mean, by = list(repset_meta$Grading))
+
+ductal = rep("high",length(ductal_values))
+#ductal[ductal <= mean( ductal )]   = "low"
+#ductal[ductal <= median( ductal )]   = "low"
+ductal[ductal_values <= tail( agg$x, 1 )]   = "low"
+#ductal[ductal <= ( ( tail( agg$x, 1 ) + tail( agg$x, 2 )[1] ) / 2 ) ]    = "low"
+
+#data = vis_mat[,c("OS_Tissue","Zensur")]
+data_surv <- repset_meta[,c("OS_Tissue", "Zensur")]
+data_surv <- cbind(data_surv, ductal)
+data_surv$OS_Tissue <-str_replace_all(data_surv$OS_Tissue, ",", ".")
+data_surv <- data_surv[!is.na(data_surv$Zensur),]
+
+fit_surv <- survival::survfit( survival::Surv( as.double(data_surv$OS_Tissue), data_surv$Zensur ) ~ data_surv$ductal)
+surv_ductal = survminer::surv_pvalue(fit_surv, data = data_surv)$pval
+surv_ductal
+
+#svg(filename = graphics_path_survival_ductal, width = 10, height = 10)
+survminer::ggsurvplot(fit_surv, data = data_surv, risk.table = F, pval = T, censor.size = 10,
+                      xlab = "Month", ylab = "Survival Rate")
+
+
+
+# mki67
+
+agg_ki = aggregate(as.numeric(ki67_repset), FUN = mean, by = list(repset_meta$Grading))
+ki67 = rep("high",length(ki67_repset))
+#ki67[ki67_repset <= tail( agg_ki$x, 1 )]   = "low"
+ki67[ki67_repset <= mean( as.numeric(ki67_repset))]   = "low"
+ 
+data_surv_ki = repset_meta[,c("OS_Tissue", "Zensur")]
+data_surv_ki = cbind(data_surv_ki, ki67)
+data_surv_ki$OS_Tissue <-str_replace_all(data_surv_ki$OS_Tissue, ",", ".")
+data_surv_ki <- data_surv_ki[!is.na(data_surv_ki$Zensur),]
+
+#surv_mki67 = survminer::surv_pvalue(survival::survfit( survival::Surv( as.double(data_surv$OS_Tissue) ) ~ data_surv$ki67), data = data_surv, 
+#                                    method = "survdiff")$pval
+
+fit_surv_ki = survival::survfit( survival::Surv( as.double(data_surv_ki$OS_Tissue), data_surv_ki$Zensur ) ~ data_surv_ki$ki67)
+surv_mki67 = survminer::surv_pvalue(fit_surv_ki, data = data_surv_ki)$pval
+
+survminer::ggsurvplot(fit_surv_ki, data = data_surv_ki, risk.table = F, pval = T, censor.size = 10, 
+                      xlab = "Month", ylab = "Survival Rate")
+
+
+### create data_surv_all with ki67+ductal
+
+data_surv_all <- repset_meta[,c("OS_Tissue", "Zensur")]
+data_surv_all <- cbind(data_surv_all, ductal)
+data_surv_all <- cbind(data_surv_all, ki67)
+data_surv_all$OS_Tissue <- str_replace_all(data_surv_all$OS_Tissue, ",", ".")
+data_surv_all <- data_surv_all[!is.na(data_surv_all$Zensur),]
+
+fit_surv_all <- survival::survfit( survival::Surv( as.double(data_surv_all$OS_Tissue), data_surv_all$Zensur ) ~ data_surv_all$ductal)
+fit_surv_ki_all = survival::survfit( survival::Surv( as.double(data_surv_all$OS_Tissue), data_surv_all$Zensur ) ~ data_surv_all$ki67)
+
+## both surv objects on the same graph wanted
+kaplan_meier <- survminer::ggsurvplot(list(ductal = fit_surv_all, ki67 = fit_surv_ki_all), data = data_surv_all, risk.table = F, 
+                      censor.size = 10, combine = T, xlab = "Month", ylab = "Survival Rate", palette = "RdBu")#,
+                      #pval = "P-value \nKi-67: 8.7E-05\nDuctal:1,7E-04", pval.coord = c(0,0.25))
+                      #+ geom_text(x=0, y= 0.25, label="P-value\nKi-67: 8.7E-05\nDuctal:1,7E-04")
